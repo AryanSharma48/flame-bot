@@ -1,7 +1,27 @@
 this is a readme
 
-## im aryan sharma
- hello this is aryan
-# my name is aryan
+## Description
+hello this is aryan
 
-## hi
+## Installation
+TODO: Add content here
+
+## Usage
+TODO: Add content here
+
+## Dependencies
+python + node
+
+## Folder Structure
+TODO: Add content here
+
+## License
+TODO: Add content here
+
+## Built By
+aryan sharma
+
+## Hi
+
+ # these are the dependencies
+
