@@ -1,5 +1,5 @@
 import fs from "fs";
-import { getDependencies } from "./projectReader.js";
+import { getDependencies, getScripts } from "./projectReader.js";
 import getProjectStructure from "./fileTree.js";
 
 export default function getDefaultContent(section, projectType) {
@@ -18,11 +18,26 @@ export default function getDefaultContent(section, projectType) {
 
         case "usage":
             if (projectType === "node") {
+                const scripts = getScripts();
+
+                if (scripts.length > 0) {
+                    const commands = scripts.map(script => {
+                        return script === "start"
+                            ? "npm start"
+                            : `npm run ${script}`;
+                    }).join("\n");
+
+                    return `You can run the following scripts:\n\n\`\`\`bash\n${commands}\n\`\`\``;
+                }
+
+                // fallback if no scripts
                 return "Run the project using:\n\n```bash\nnpm start\n```";
             }
+
             if (projectType === "python") {
                 return "Run the project using:\n\n```bash\npython main.py\n```";
             }
+
             return "Add usage instructions here.";
 
         case "dependencies":

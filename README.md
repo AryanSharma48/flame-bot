@@ -1,8 +1,15 @@
 ## Description
 A brief description of your project, its purpose, and what problem it solves.
 
+## Installation
+Follow these steps to install the project:
+
+```bash
+npm install
+```
+
 ## Usage
-Run the project using:
+You can run the following scripts:
 
 ```bash
 npm start
@@ -17,6 +24,9 @@ This project uses the following dependencies:
 Project structure:
 
 ```
+├── .github
+│   └── workflows
+│       └── readme-bot.yml
 ├── .gitignore
 ├── package-lock.json
 ├── package.json

@@ -23,3 +23,14 @@ export function getDependencies() {
         return [];
     }
 }
+
+export function getScripts() {
+    if (!fs.existsSync("package.json")) return [];
+
+    try {
+        const data = JSON.parse(fs.readFileSync("package.json", "utf-8"));
+        return Object.keys(data.scripts || {});
+    } catch (err) {
+        return [];
+    }
+}

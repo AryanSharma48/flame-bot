@@ -4,6 +4,10 @@ import { detectProjectType } from "./projectReader.js";
 
 const projectType = detectProjectType();
 
+function isDifferent(oldContent = "", newContent = "") {
+    return oldContent.trim() !== newContent.trim();
+}
+
 try {
     const data = fs.readFileSync("README.md", "utf-8");
     const sections = data.split("## ");
@@ -27,8 +31,26 @@ try {
         "built by"
     ];
 
+    const autoManagedSections = [
+        "installation",
+        "usage",
+        "dependencies",
+        "folder structure"
+    ];
+
+
     requiredSections.forEach(section => {
-        if (!(section in sectionMap)) { sectionMap[section] = getDefaultContent(section, projectType); }
+        requiredSections.forEach(section => {
+            const newContent = getDefaultContent(section, projectType);
+
+            if (!(section in sectionMap)) {
+                sectionMap[section] = newContent;
+            } else if (autoManagedSections.includes(section)) {
+                if (isDifferent(sectionMap[section], newContent)) {
+                    sectionMap[section] = newContent;
+                }
+            }
+        });
     });
 
     function formatTitle(title) {
