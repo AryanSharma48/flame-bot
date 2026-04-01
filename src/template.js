@@ -1,5 +1,6 @@
 import fs from "fs";
-import {  getDependencies } from "./projectReader.js";
+import { getDependencies } from "./projectReader.js";
+import getProjectStructure from "./fileTree.js";
 
 export default function getDefaultContent(section, projectType) {
     switch (section) {
@@ -33,9 +34,9 @@ export default function getDefaultContent(section, projectType) {
             }
 
             return "No dependencies found.";
-            
+
         case "folder structure":
-            return "Project structure:\n\n```\nsrc/\n  ├── index.js\n  └── ...\n```";
+            return "Project structure:\n\n" + getProjectStructure();
 
         case "license":
             return "This project is licensed under the MIT License.";

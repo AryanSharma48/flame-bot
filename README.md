@@ -24,9 +24,15 @@ This project uses the following dependencies:
 Project structure:
 
 ```
-src/
-  ├── index.js
-  └── ...
+├── .gitignore
+├── package-lock.json
+├── package.json
+├── README.md
+└── src
+    ├── fileTree.js
+    ├── index.js
+    ├── projectReader.js
+    └── template.js
 ```
 
 ## Built By
