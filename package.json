@@ -40,10 +40,6 @@
   ],
   "author": "Aryan Sharma",
   "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/AryanSharma48/readme-auto-fixer/issues"
-  },
-  "homepage": "https://github.com/AryanSharma48/readme-auto-fixer#readme",
   "dependencies": {
     "@octokit/app": "^16.1.2",
     "@octokit/rest": "^22.0.1",
