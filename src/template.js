@@ -107,6 +107,7 @@ function getDependenciesContent(dependencies, packages) {
 }
 
 function getFolderStructureContent(fileTree) {
+    console.log("getFolderStructureContent received:", fileTree ? `object with ${Object.keys(fileTree).length} keys` : fileTree);
     if (!fileTree || typeof fileTree !== "object" || Object.keys(fileTree).length === 0) {
         return "Project structure:\n\n```\n(No file tree provided)\n```";
     }

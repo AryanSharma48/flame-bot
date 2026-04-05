@@ -14,8 +14,8 @@ async function findAllPackageJsonPaths(octokit, owner, repo) {
         });
         const defaultBranch = repoData.default_branch;
 
-        // Get the tree recursively
-        const { data: treeData } = await octokit.git.getTree({
+        // Get the tree recursively using request method
+        const { data: treeData } = await octokit.request("GET /repos/{owner}/{repo}/git/trees/{tree_sha}", {
             owner,
             repo,
             tree_sha: defaultBranch,
@@ -62,6 +62,8 @@ async function fetchPackageJson(octokit, owner, repo, path) {
 async function fetchAllPackages(octokit, owner, repo) {
     const { packageJsonPaths, treeData } = await findAllPackageJsonPaths(octokit, owner, repo);
 
+    console.log(`Found ${packageJsonPaths.length} package.json files, treeData exists: ${!!treeData}`);
+
     // Build file tree from tree data
     const fileTree = treeData ? buildFileTree(treeData) : null;
 
@@ -105,9 +107,19 @@ function aggregateDependencies(packages) {
 function buildFileTree(treeData) {
     const fileTree = {};
 
+    if (!treeData?.tree || !Array.isArray(treeData.tree)) {
+        console.warn("Invalid tree data received");
+        return fileTree;
+    }
+
     for (const item of treeData.tree) {
-        // Skip node_modules and .git
-        if (item.path.includes("node_modules/") || item.path.startsWith(".git")) {
+        // Skip node_modules and .git directory (but not .gitignore, .github, etc.)
+        if (
+            item.path === "node_modules" ||
+            item.path.startsWith("node_modules/") ||
+            item.path === ".git" ||
+            item.path.startsWith(".git/")
+        ) {
             continue;
         }
 
@@ -129,6 +141,7 @@ function buildFileTree(treeData) {
         }
     }
 
+    console.log(`Built file tree with ${Object.keys(fileTree).length} top-level entries`);
     return fileTree;
 }
 
