@@ -49,6 +49,18 @@ function collectDependencies(packageJson) {
     return Object.keys(packageJson.dependencies || {}).sort();
 }
 
+function collectPythonDependencies(requirementsContent) {
+    return requirementsContent
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'))
+        .filter(line => !line.startsWith('-'))
+        .map(line => line.split(';')[0].trim())
+        .map(line => line.split(/[=<>!~]/)[0].trim())
+        .filter(Boolean)
+        .sort((left, right) => left.localeCompare(right));
+}
+
 function collectScripts(packageJson) {
     const scripts = new Map();
 
@@ -59,12 +71,26 @@ function collectScripts(packageJson) {
     return scripts;
 }
 
+function getLicenseName(licenseContent) {
+    const firstLine = licenseContent
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .find(Boolean);
+
+    return firstLine || '';
+}
+
 console.log("Scanning for project files...");
 
 const targetDir = process.cwd();
 const readmePath = path.join(targetDir, 'README.md');
 const packageJsonPath = path.join(targetDir, 'package.json');
+const requirementsPath = path.join(targetDir, 'requirements.txt');
+const licensePath = path.join(targetDir, 'LICENSE');
 const readmeExists = fs.existsSync(readmePath);
+const hasPackageJson = fs.existsSync(packageJsonPath);
+const hasRequirements = fs.existsSync(requirementsPath);
+const hasLicense = fs.existsSync(licensePath);
 
 if (!readmeExists && !shouldInit && !shouldForce) {
     console.error("Error: No README.md found in this directory. Try --init.");
@@ -76,8 +102,8 @@ if (readmeExists && shouldInit && !shouldForce) {
     process.exit(1);
 }
 
-if (!fs.existsSync(packageJsonPath)) {
-    console.error("Error: No package.json found in this directory.");
+if (!hasPackageJson && !hasRequirements) {
+    console.error("Error: No package.json or requirements.txt found in this directory.");
     process.exit(1);
 }
 
@@ -90,26 +116,48 @@ try {
 
     // 1. Read the raw text of both files
     const readmeContent = fs.existsSync(readmePath) ? fs.readFileSync(readmePath, 'utf-8') : '';
-    const packageJsonData = fs.readFileSync(packageJsonPath, 'utf-8');
-
-    // 2. Parse package.json to build the context object your engine expects
-    const packageJson = JSON.parse(packageJsonData);
     const fileTree = buildFileTree(targetDir);
-    const context = {
-        packageJson,
-        packages: [{ path: 'package.json', content: packageJson }],
-        dependencies: collectDependencies(packageJson),
-        scripts: collectScripts(packageJson),
-        fileTree,
-        username: packageJson.author || 'Unknown Author',
-        projectName: packageJson.name || 'this project',
-        hasPackageJson: true,
-        isMonorepo: false
-    };
+    const projectName = path.basename(targetDir);
+    const licenseName = hasLicense ? getLicenseName(fs.readFileSync(licensePath, 'utf-8')) : '';
+    let context;
+    let projectType;
+
+    if (hasPackageJson) {
+        const packageJsonData = fs.readFileSync(packageJsonPath, 'utf-8');
+        const packageJson = JSON.parse(packageJsonData);
+
+        context = {
+            packageJson,
+            packages: [{ path: 'package.json', content: packageJson }],
+            dependencies: collectDependencies(packageJson),
+            scripts: collectScripts(packageJson),
+            fileTree,
+            licenseName,
+            username: packageJson.author || process.env.USERNAME || 'Unknown Author',
+            projectName: packageJson.name || projectName,
+            hasPackageJson: true,
+            isMonorepo: false
+        };
+        projectType = 'node';
+    } else {
+        const requirementsContent = fs.readFileSync(requirementsPath, 'utf-8');
+
+        context = {
+            packages: [{ path: 'requirements.txt', content: requirementsContent }],
+            dependencies: collectPythonDependencies(requirementsContent),
+            scripts: new Map(),
+            fileTree,
+            licenseName,
+            username: process.env.USERNAME || 'Unknown Author',
+            projectName,
+            hasPackageJson: false,
+            isMonorepo: false
+        };
+        projectType = 'python';
+    }
 
     // 3. Feed everything into your pure engine
-    // Hardcoding 'node' as projectType for now since we rely on package.json
-    const updatedReadme = processReadme(readmeContent, 'node', context);
+    const updatedReadme = processReadme(readmeContent, projectType, context);
 
     // 4. Overwrite the existing README.md with the new content
     fs.writeFileSync(readmePath, updatedReadme, 'utf-8');

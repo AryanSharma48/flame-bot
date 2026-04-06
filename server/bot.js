@@ -1,7 +1,7 @@
 import { getOctokit } from "./github.js";
 import processReadme from "../src/processReadme.js";
 
-async function findAllPackageJsonPaths(octokit, owner, repo) {
+async function findProjectFiles(octokit, owner, repo) {
     try {
         const { data: repoData } = await octokit.request("GET /repos/{owner}/{repo}", {
             owner,
@@ -24,10 +24,21 @@ async function findAllPackageJsonPaths(octokit, owner, repo) {
             )
             .map(item => item.path);
 
-        return { packageJsonPaths, treeData };
+        const requirementsPaths = treeData.tree
+            .filter(item =>
+                item.type === "blob" &&
+                item.path.endsWith("requirements.txt") &&
+                !item.path.includes("node_modules/") &&
+                !item.path.includes(".git/") &&
+                !item.path.includes("venv/") &&
+                !item.path.includes(".venv/")
+            )
+            .map(item => item.path);
+
+        return { packageJsonPaths, requirementsPaths, treeData };
     } catch (err) {
         console.error("Error scanning repository tree:", err.message);
-        return { packageJsonPaths: [], treeData: null };
+        return { packageJsonPaths: [], requirementsPaths: [], treeData: null };
     }
 }
 
@@ -46,20 +57,59 @@ async function fetchPackageJson(octokit, owner, repo, path) {
     }
 }
 
-async function fetchAllPackages(octokit, owner, repo) {
-    const { packageJsonPaths, treeData } = await findAllPackageJsonPaths(octokit, owner, repo);
-    const fileTree = treeData ? buildFileTree(treeData) : null;
-
-    if (packageJsonPaths.length === 0) {
-        return { packages: [], fileTree };
+async function fetchRequirementsFile(octokit, owner, repo, path) {
+    try {
+        const { data } = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+            owner,
+            repo,
+            path,
+        });
+        const content = Buffer.from(data.content, "base64").toString();
+        return { path, content, error: null };
+    } catch (err) {
+        console.warn(`Failed to fetch ${path}:`, err.message);
+        return { path, content: null, error: err.message };
     }
+}
 
-    const results = await Promise.all(
-        packageJsonPaths.map(path => fetchPackageJson(octokit, owner, repo, path))
+function findLicensePath(treeData) {
+    const licenseEntry = treeData?.tree?.find(item =>
+        item.type === "blob" &&
+        /^LICENSE(?:\.[^/]+)?$/i.test(item.path)
     );
 
-    const packages = results.filter(pkg => pkg.content !== null);
-    return { packages, fileTree };
+    return licenseEntry?.path || null;
+}
+
+function getLicenseName(licenseContent) {
+    const firstLine = licenseContent
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .find(Boolean);
+
+    return firstLine || "";
+}
+
+async function fetchLicenseName(octokit, owner, repo, treeData) {
+    const licensePath = findLicensePath(treeData);
+
+    if (!licensePath) {
+        return "";
+    }
+
+    try {
+        const { data } = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+            owner,
+            repo,
+            path: licensePath,
+        });
+
+        const content = Buffer.from(data.content, "base64").toString();
+        return getLicenseName(content);
+    } catch (err) {
+        console.warn(`Failed to fetch license file ${licensePath}:`, err.message);
+        return "";
+    }
 }
 
 function aggregateDependencies(packages) {
@@ -89,6 +139,26 @@ function aggregateDependencies(packages) {
                 depsSet.add(dep);
             });
         }
+    }
+
+    return Array.from(depsSet).sort();
+}
+
+function aggregatePythonDependencies(requirementFiles) {
+    const depsSet = new Set();
+
+    for (const file of requirementFiles) {
+        if (!file?.content) continue;
+
+        file.content
+            .split(/\r?\n/)
+            .map(line => line.trim())
+            .filter(line => line && !line.startsWith("#"))
+            .filter(line => !line.startsWith("-"))
+            .map(line => line.split(";")[0].trim())
+            .map(line => line.split(/[=<>!~]/)[0].trim())
+            .filter(Boolean)
+            .forEach(dep => depsSet.add(dep));
     }
 
     return Array.from(depsSet).sort();
@@ -172,18 +242,34 @@ export async function runBot(payload) {
         });
 
         const content = Buffer.from(data.content, "base64").toString();
-        const { packages, fileTree } = await fetchAllPackages(octokit, owner, repo);
-        const dependencies = aggregateDependencies(packages);
-        const scripts = aggregateScripts(packages);
-        const projectType = packages.length > 0 ? "node" : "unknown";
+        const { packageJsonPaths, requirementsPaths, treeData } = await findProjectFiles(octokit, owner, repo);
+        const fileTree = treeData ? buildFileTree(treeData) : null;
+        const packages = packageJsonPaths.length > 0
+            ? (await Promise.all(packageJsonPaths.map(path => fetchPackageJson(octokit, owner, repo, path))))
+                .filter(pkg => pkg.content !== null)
+            : [];
+        const requirementFiles = packages.length === 0 && requirementsPaths.length > 0
+            ? (await Promise.all(requirementsPaths.map(path => fetchRequirementsFile(octokit, owner, repo, path))))
+                .filter(file => file.content !== null)
+            : [];
+        const isNodeProject = packages.length > 0;
+        const isPythonProject = !isNodeProject && requirementFiles.length > 0;
+        const dependencies = isNodeProject
+            ? aggregateDependencies(packages)
+            : aggregatePythonDependencies(requirementFiles);
+        const scripts = isNodeProject ? aggregateScripts(packages) : new Map();
+        const projectType = isNodeProject ? "node" : (isPythonProject ? "python" : "unknown");
+        const licenseName = await fetchLicenseName(octokit, owner, repo, treeData);
 
         const context = {
-            packages,
+            packages: isNodeProject ? packages : requirementFiles,
             dependencies,
             scripts,
             fileTree,
+            licenseName,
             username: owner,
-            isMonorepo: packages.length > 1,
+            projectName: repo,
+            isMonorepo: isNodeProject && packages.length > 1,
         };
 
         const newReadme = processReadme(content, projectType, context);

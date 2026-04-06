@@ -24,6 +24,7 @@ This project uses the following dependencies:
 
 - @octokit/app
 - @octokit/rest
+- blytz
 - dotenv
 - express
 
@@ -40,7 +41,6 @@ Project structure:
 ├── LICENSE
 ├── package-lock.json
 ├── package.json
-├── README.md
 ├── scripts
 │   └── sync-readme.js
 ├── server
@@ -58,7 +58,7 @@ Project structure:
 
 ## License
 
-Add your license information here.
+This project is licensed under the MIT License. See the LICENSE file for details.
 
 ## Built By
 

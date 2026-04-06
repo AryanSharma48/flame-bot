@@ -6,6 +6,7 @@ export default function getDefaultContent(section, projectType, context = {}) {
         dependencies = [],
         scripts = new Map(),
         fileTree = null,
+        licenseName = "",
         username = "Unknown",
         projectName = "this project",
         isMonorepo = false,
@@ -26,7 +27,7 @@ export default function getDefaultContent(section, projectType, context = {}) {
         case "folder structure":
             return getFolderStructureContent(fileTree);
         case "license":
-            return "Add your license information here.";
+            return getLicenseContent(licenseName);
         case "built by":
             return `Built with ❤️ by @${(username || "Unknown").trim()}`;
         default:
@@ -103,6 +104,13 @@ function getDependenciesContent(dependencies, packages) {
         return header + dependencies.map(d => `- ${d}`).join("\n");
     }
     return "No dependencies found.";
+}
+
+function getLicenseContent(licenseName) {
+    if (licenseName) {
+        return `This project is licensed under the ${licenseName}. See the LICENSE file for details.`;
+    }
+    return "Add your license information here.";
 }
 
 function getFolderStructureContent(fileTree) {
